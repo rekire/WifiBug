@@ -1,0 +1,54 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    compileSdk 32
+
+    defaultConfig {
+        applicationId "eu.rekisoft.android.wifibug"
+        minSdk 23
+        targetSdk 32
+        versionCode 1
+        versionName "1.0"
+
+        // You can hardcode here your wifi or store it in local.properties
+        // Be aware that this can be viewed and is not encrypted at all.
+        def configFile = project.rootProject.file('local.properties')
+        def defaultSsid = ''
+        def defaultPassword = ''
+        if (configFile.exists()) {
+            Properties properties = new Properties()
+            properties.load(configFile.newDataInputStream())
+
+            defaultSsid = properties.getProperty('defaultSsid') ?: ''
+            defaultPassword = properties.getProperty('defaultPassword') ?: ''
+        }
+        resValue 'string', 'default_ssid', defaultSsid
+        resValue 'string', 'default_password', defaultPassword
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+    buildFeatures {
+        viewBinding true
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.7.0'
+    implementation 'androidx.appcompat:appcompat:1.4.1'
+    implementation 'com.google.android.material:material:1.5.0'
+}
