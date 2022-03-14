@@ -1,11 +1,14 @@
 package eu.rekisoft.android.wifibug
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.*
 import android.net.wifi.WifiConfiguration
 import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSpecifier
+import android.net.wifi.WifiNetworkSuggestion
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -13,15 +16,13 @@ import android.os.Looper
 import android.util.Log
 import android.view.LayoutInflater
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import androidx.core.widget.addTextChangedListener
 import eu.rekisoft.android.wifibug.databinding.ActivityMainBinding
 import java.text.SimpleDateFormat
 import java.util.*
 
 class MainActivity : AppCompatActivity() {
-    private val connectivityManager by lazy {
-        applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-    }
     private val wifiManager by lazy {
         applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
     }
@@ -102,62 +103,41 @@ class MainActivity : AppCompatActivity() {
 
     fun connectToWifi(ssid: String, password: String) {
         log("Connecting to $ssid...")
-        val networkCallback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                log("onAvailable($network)")
-                // To make sure that requests don't go over mobile data
-                connectivityManager.bindProcessToNetwork(network)
-            }
-
-            override fun onLosing(network: Network, maxMsToLive: Int) {
-                log("onAvailable($network, $maxMsToLive)")
-            }
-
-            override fun onLost(network: Network) {
-                println("onLost($network)")
-                // This is to stop the looping request for OnePlus & Xiaomi models
-                connectivityManager.bindProcessToNetwork(null)
-                connectivityManager.unregisterNetworkCallback(this)
-            }
-
-            override fun onUnavailable() {
-                log("onUnavailable()")
-            }
-
-            override fun onCapabilitiesChanged(
-                network: Network,
-                networkCapabilities: NetworkCapabilities
-            ) {
-                log("onCapabilitiesChanged($network, $networkCapabilities)")
-            }
-
-            override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) {
-                log("onLinkPropertiesChanged($network, $linkProperties)")
-            }
-
-            override fun onBlockedStatusChanged(network: Network, blocked: Boolean) {
-                log("onBlockedStatusChanged($network, $blocked)")
-            }
-        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val wifiNetworkSpecifier = WifiNetworkSpecifier.Builder().apply {
-                setSsid(ssid)
-                if (password.isNotEmpty()) {
-                    setWpa2Passphrase(password)
+            val suggestion = WifiNetworkSuggestion.Builder()
+                .setSsid(ssid).apply {
+                    if (password.isNotEmpty()) {
+                        setWpa2Passphrase(password)
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        setMacRandomizationSetting(WifiNetworkSuggestion.RANDOMIZATION_PERSISTENT)
+                    }
+                    if (binding.useAppInteractionRequired.isChecked) {
+                        setIsAppInteractionRequired(true) // Needs location permission
+                    }
                 }
-            }.build()
+                .setIsMetered(false)
+                .build()
 
-            val networkRequest = NetworkRequest.Builder().apply {
-                addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-                if (binding.useCapabilities.isChecked) {
-                    addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                    addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED)
+            val status = wifiManager.addNetworkSuggestions(listOf(suggestion))
+            val granted = ActivityCompat.checkSelfPermission(this, Manifest.permission.CHANGE_WIFI_STATE) == PackageManager.PERMISSION_GRANTED
+            log("CHANGE_WIFI_STATE permission is " + (if(granted) "" else "NOT ") + "granted")
+            if (status == WifiManager.STATUS_NETWORK_SUGGESTIONS_SUCCESS) {
+                log("Success!")
+            } else {
+                val humanReadableError = when(status) {
+                    WifiManager.STATUS_NETWORK_SUGGESTIONS_ERROR_INTERNAL -> "internal"
+                    WifiManager.STATUS_NETWORK_SUGGESTIONS_ERROR_APP_DISALLOWED -> "app disallowed"
+                    WifiManager.STATUS_NETWORK_SUGGESTIONS_ERROR_ADD_DUPLICATE -> "add duplicate"
+                    WifiManager.STATUS_NETWORK_SUGGESTIONS_ERROR_ADD_EXCEEDS_MAX_PER_APP -> "add exceeds max per app"
+                    WifiManager.STATUS_NETWORK_SUGGESTIONS_ERROR_REMOVE_INVALID -> "remove invalid"
+                    WifiManager.STATUS_NETWORK_SUGGESTIONS_ERROR_ADD_NOT_ALLOWED -> "add not allowed"
+                    WifiManager.STATUS_NETWORK_SUGGESTIONS_ERROR_ADD_INVALID -> "add invalid"
+                    else -> "Unknown state $status"
                 }
-                setNetworkSpecifier(wifiNetworkSpecifier)
-            }.build()
-
-            connectivityManager.requestNetwork(networkRequest, networkCallback)
+                log("Failed with error: $humanReadableError")
+            }
         } else {
             if (wifiManager.isWifiEnabled) {
                 val wifiConfig = WifiConfiguration()

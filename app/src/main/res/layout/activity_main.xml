@@ -41,10 +41,10 @@
     </com.google.android.material.textfield.TextInputLayout>
 
     <CheckBox
-        android:id="@+id/use_capabilities"
+        android:id="@+id/use_app_interaction_required"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Use network capabilities INTERNET and NOT_RESTRICTED" />
+        android:text="Use AppInteractionRequired flag" />
 
     <CheckBox
         android:id="@+id/save_data"
